@@ -31,6 +31,13 @@ class L10nEsAeatMod347Report(orm.Model):
             if tax_line.name.find('IRPF') == -1:
                 amount += tax_line.amount
         return amount
+    
+    def _calc_tax_person_operation(self, cr, uid, invoice, context=None):
+        amount = invoice.cc_amount_untaxed
+        for tax_line in invoice.tax_line:
+            if not tax_line.name.find('pasivo') == -1:          
+                return True            
+        return False
 
     def _get_default_address(self, cr, uid, partner, context=None):
         """Get the default invoice address of the partner"""
@@ -76,9 +83,14 @@ class L10nEsAeatMod347Report(orm.Model):
             # Calculate the invoiced amount
             # Remove IRPF tax for invoice amount
             invoice_amount = 0
+            tax_person_operation = False
             for invoice in invoices:
                 invoice_amount += self._calc_total_invoice(
                     cr, uid, invoice, context=context)
+                if invoice.type == 'in_invoice' and not tax_person_operation:
+                    tax_person_operation = self._calc_tax_person_operation(
+                        cr, uid, invoice, context=context)
+                 
             refund_amount = 0
             for refund in refunds:
                 refund_amount += self._calc_total_invoice(
@@ -127,7 +139,9 @@ class L10nEsAeatMod347Report(orm.Model):
                                             address.state_id.code or ''),
                      'partner_country_code': partner_country_code,
                      'amount': total_amount,
-                     'community_vat': community_vat}, context=context,)
+                     'community_vat': community_vat,
+                     'tax_person_operation': tax_person_operation                     
+                     }, context=context,)
                 if invoice_type == 'out_invoice':
                     receivable_partner_record_id = partner_record_id
                 # Add invoices detail to the partner record
